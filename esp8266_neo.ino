@@ -90,10 +90,10 @@ Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 #define BrokerPace 2000 // Minimal delay between 2 messages, to sure we do not polute the Broker 
 
 // Parametres locaux et Wifi--------------------------------
-// const char* ssid = "Livebox-79B6";
-// const char* password = "1C1ED33F5A367EC7D564F53F9D";
-const char* ssid = "NETGEAR98";
-const char* password = "greenvase352";
+// const char* ssid = "L6";
+// const char* password = "1GHGJHGJHGJ3F9D";
+const char* ssid = "NETGEARplop";
+const char* password = "what did you expect";
 const char* mqtt_server = "raspfja.home";
 char mqtt_client_name[25];
 String hostnam ;
