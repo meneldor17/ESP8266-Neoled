@@ -194,7 +194,7 @@ void setup() {                      // -----------------------------------------
   oled.setCursor(0,0);
   oled.setFontType(0);
   oled.println("NEO2022");
-  oled.print("starting..");
+  oled.print(NUM_LEDS);oled.println(" leds");
   oled.println(chipidstr);
   oled.display();
   #endif
@@ -209,7 +209,8 @@ if (WIFIMQTT == 1)
   
 // start MQTT stuff
   mqtt_client_name[0]=0;
-  hostnam.toCharArray(mqtt_client_name,hostnam.length()+1);
+  chipidstr.toCharArray(mqtt_client_name,chipidstr.length()+1);
+ // hostnam.toCharArray(mqtt_client_name,hostnam.length()+1); // old MQTT name
   Serial.print("MQTT Client Name : ");
   Serial.println(mqtt_client_name);
   
@@ -451,6 +452,18 @@ void NTPGetTime() { // what time is it ? ---------------------------------------
   Serial.println(temps.getFormattedTime());
 }
 
+void DspOled(String &ToBeDisplayed)
+
+{
+  #if defined(ARDUINO_ESP8266_WEMOS_D1MINI)
+    oled.clear(PAGE);  oled.setCursor(0,0); // clear display buffer   
+    oled.println("NEO2022 V1");
+    oled.println(mqtt_client_name);
+    oled.println();
+    oled.println(ToBeDisplayed);oled.display();
+   #endif
+}
+
 void Normaliz( String &StrNorm) { // in case there is only 1 digit add a zero upfront
   if (StrNorm.length() == 1) {
     StrNorm = "0" + StrNorm ;
@@ -469,6 +482,7 @@ void TimeStamp(String &tmStp) {
 
 
 void loop() {  // et voila on est parti pour un tour ---------------------------------========================
+  String messOled;
   Serial.println();Serial.print(LoopNbr);Serial.print(" - loop type =");++LoopNbr;
   Serial.println(neoseq);
  if (WIFIMQTT == 1)
@@ -508,10 +522,7 @@ if (neoseq == "ALL"){
    }
    
    Serial.println("Strip color ..");
-   #if defined(ARDUINO_ESP8266_WEMOS_D1MINI)
-     oled.clear(PAGE);  oled.setCursor(0,0); // clear display buffer   
-     oled.println("Strip color");oled.display();
-   #endif
+   messOled=("StripColor"); DspOled(messOled);
    colorWipe(strip.Color(255, 0, 0), 50); // Red
      client.loop();if (neoseq != "ALL"){return;}
    colorWipe(strip.Color(0, 255, 0), 50); // Green
@@ -520,37 +531,46 @@ if (neoseq == "ALL"){
      client.loop();if (neoseq != "ALL"){return;}
    // RGB Wipe
    Serial.println("RGB Wipe ..");
-   #if defined(ARDUINO_ESP8266_WEMOS_D1MINI)
-     oled.clear(PAGE); oled.setCursor(0,0);// clear display buffer   
-     oled.println("RGB Wipe");oled.display();
-   #endif   
+   messOled=("Rgb Wipe"); DspOled(messOled);   
    RGBLoop(); client.loop();RGBLoop(); client.loop();
    // Heart beat 
    Serial.println("Heart beat ..");
+   messOled=("Heart beat"); DspOled(messOled);
    heartbeat(10); 
    client.loop();if (neoseq != "ALL"){return;}
    // Theatre
    strip.setBrightness(125);
-   Serial.println("Theater pixel ..");theaterChase(strip.Color(  0,   0, 127), 50);theaterChase(strip.Color(  0,   0, 127), 50); theaterChase(strip.Color(  0,   0, 127), 50); // Blue
+   Serial.println("Theater pixel ..");
+   messOled=("TheaterPix"); DspOled(messOled);
+   theaterChase(strip.Color(  0,   0, 127), 50);theaterChase(strip.Color(  0,   0, 127), 50); theaterChase(strip.Color(  0,   0, 127), 50); // Blue
    // Rainbow
    strip.setBrightness(125);
-   Serial.println("Rainbow cycle ..");rainbowCycle(5); client.loop();if (neoseq != "ALL"){return;}
+   Serial.println("Rainbow cycle ..");
+   messOled=("Rainbow"); DspOled(messOled);
+   rainbowCycle(5); client.loop();if (neoseq != "ALL"){return;}
    // Theatre chase
-   Serial.println("Theater chase raindow ..");theaterChaseRainbow(5); client.loop();if (neoseq != "ALL"){return;}
+   Serial.println("Theater chase raindow ..");
+    messOled=("ThrRnbShase"); DspOled(messOled);
+    theaterChaseRainbow(5); client.loop();if (neoseq != "ALL"){return;}
    // BOB
    Serial.println("Bouncing ball .."); 
+   messOled=("BouncinBal"); DspOled(messOled);
    BouncingBalls(0xff,0,0, 3);client.loop();if (neoseq != "ALL"){return;}
    BouncingBalls(0xff,0,0, 3);client.loop();if (neoseq != "ALL"){return;}
    BouncingBalls(0xff,0,0, 3);client.loop();if (neoseq != "ALL"){return;}
    // CYlon 
    Serial.println("Cylon .."); 
+   messOled=("Cylon"); DspOled(messOled);
    CylonBounce(0xff, 0, 0, 4, 10, 50); client.loop();if (neoseq != "ALL"){return;}
    CylonBounce(0xff, 0, 0, 4, 10, 50); client.loop();if (neoseq != "ALL"){return;}
    CylonBounce(0xff, 0, 0, 4, 10, 50); client.loop();if (neoseq != "ALL"){return;}
   // Breathe 2
-    Serial.println("Breathe 2  .."); breathe2(); client.loop();if (neoseq != "ALL"){return;}
+    Serial.println("Breathe 2  ..");
+    messOled=("Breathe 2"); DspOled(messOled);
+    breathe2(); client.loop();if (neoseq != "ALL"){return;}
   // Fire 
     Serial.println("Fire  ..");
+    messOled=("Fire"); DspOled(messOled);
     Fire(55,120,15);
     client.loop();if (neoseq != "ALL"){return;}
   }
