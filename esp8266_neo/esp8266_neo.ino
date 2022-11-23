@@ -1,5 +1,6 @@
 /*
-Version b : new way to call NTP using a library
+added : manage situation where Wifi does not work, we will go to ALL
+added : new way to call NTP using a library
 Module standard
 - WiFi connectivity 
 - MQTT support 
@@ -68,6 +69,7 @@ Add former RGB support
 
 #define NEOPIN 5 // PIN D1 on wemos or nodemcu
 #define WIFIMQTT 1 // 1 with  wifi and mqtt other value like 0 no Wifi and no MQTT
+#define MAXWIFITRYNBR 10 // if using wifi and MQTT number of tries before leaving it to a later time
 // #define NUM_LEDS 300 // number of LED on the strip 300 70
 #define NUM_LEDS 208 // number of LED on the strip 300 70
 
@@ -121,7 +123,7 @@ int Blue=0;
 int Green=2;
 int Red=1;
 int LoopNbr=0; // loop number
-
+boolean WifiOK=true; // true if we are connected OK to WiFi, false if we are not connected or if WIFIMQTT=0 meaning we dont want to use MQTT nad Wifi
 
 WiFiClient espClient;
 OTA ota;
@@ -145,6 +147,9 @@ void setup() {                      // -----------------------------------------
   String chipidstr;
   String topiccc;
   String probename;
+  byte error=0;  // to manage oled start
+  byte address=60; // address of the oled display
+  
   Serial.begin(115200);
   Serial.println();
   Serial.println(__FILE__);Serial.println(__DATE__);  Serial.println(__TIME__);
@@ -157,17 +162,38 @@ void setup() {                      // -----------------------------------------
   hostnam += chipidstr;
   Serial.print("Hostname: ");
   Serial.println(hostnam);
-  
+  // specific Wemos OLED
   #if defined(ARDUINO_ESP8266_WEMOS_D1MINI)
-// specific Wemos OLED
+
   Serial.println("OLED is starting...");
+  Wire.beginTransmission(address);  // 60 is 0x3C
+  error = Wire.endTransmission();
+
+  Serial.print("error I2C : ");  Serial.println(error);
+
+  if (error == 0){
+    Serial.print("I2C device found at address 0x");
+    if (address < 16)
+      Serial.print("0");
+    Serial.print(address, HEX);
+    Serial.print("/ decimal ");Serial.print(address);
+    Serial.println("  ! ");
+
+  } else if (error == 4) {
+    Serial.print("Unknow error at address 0x");
+    if (address < 16)
+      Serial.print("0");
+    Serial.println(address, HEX);
+    }
+  Wire.begin();
+  
   oled.begin();
   oled.clear(ALL);  // Clear the display's memory (gets rid of artifacts)
   oled.clear(PAGE); // clear display buffer  
   oled.display();   // push to physical display   
   oled.setCursor(0,0);
   oled.setFontType(0);
-  oled.println("NEO2021 V1");
+  oled.println("NEO2022");
   oled.print("starting..");
   oled.println(chipidstr);
   oled.display();
@@ -200,6 +226,9 @@ if (WIFIMQTT == 1)
   
   Serial.println("Depart =====================");
 } // end of wifi MQTT stuff 
+else {
+  WifiOK = false;
+}
   
 // start NeoPIxel
   strip.begin();
@@ -245,6 +274,7 @@ void setup_wifi() {
   Serial.println();
   Serial.print("Connecting to ");
   Serial.println(ssid);   
+  int trynbr = 0;
   #if defined(ARDUINO_ESP8266_WEMOS_D1MINI)
       oled.print("WiFi:");
     #endif
@@ -263,30 +293,36 @@ void setup_wifi() {
     #endif
     Serial.print(WiFi.status()); // for debug purpose
     yield();
+    if (++trynbr>MAXWIFITRYNBR) {
+      WifiOK = false;
+      Serial.println();Serial.println("Wifi not connected ...will try later.");
+      break; // exit the while loop 
+     }
   }
-
-  Serial.println("");
-  Serial.print("WiFi connected - IP address: ");
-  Serial.println(WiFi.localIP());
-  String AdrIP;
-  AdrIP=IpAddress2String(WiFi.localIP());
+  if (WifiOK) {
+   Serial.println("");
+   Serial.print("WiFi connected - IP address: ");
+   Serial.println(WiFi.localIP());
+   String AdrIP;
+   AdrIP=IpAddress2String(WiFi.localIP());
       
-  #if defined(ARDUINO_ESP8266_WEMOS_D1MINI)
-    oled.println();
-    oled.println(AdrIP);oled.display();
-  #endif
-  // probleme DHCP qui ne donne pas toujours bonne adresse
-  if (AdrIP.substring(0,6)=="10.0.0")
-    Serial.println("bon range");
-  else
-    {
-      Serial.println("pas bon le range");
-      ESP.reset();
-    }
-  Serial.print("AP subnet mask: ");
-  Serial.println(WiFi.subnetMask());
-  Serial.print("AP gateway: ");
-  Serial.println(WiFi.gatewayIP()); 
+    #if defined(ARDUINO_ESP8266_WEMOS_D1MINI)
+      oled.println();
+      oled.println(AdrIP);oled.display();
+    #endif
+     // probleme DHCP qui ne donne pas toujours bonne adresse
+     if (AdrIP.substring(0,6)=="10.0.0")
+        Serial.println("bon range");
+     else
+     {
+       Serial.println("pas bon le range !! problem with DHCP try again");
+       ESP.reset();
+     }
+   Serial.print("AP subnet mask: ");
+   Serial.println(WiFi.subnetMask());
+   Serial.print("AP gateway: ");
+   Serial.println(WiFi.gatewayIP()); 
+  }
 }
 
 void callback(char* topic, byte* payload, unsigned int length) { // we have made subscription so we could receive something ------
@@ -365,12 +401,20 @@ void reconnect() { //  let's reconnect to the broker ---------------------------
   String stopic;
   char topic[30];
   String lstreboot;
+  int loopnbr=0; // to exit the MQTT reconnection loop if does not work
 
   hellomessagechar[0]=0;
   lstreboot = ESP.getBootMode();
   hellomessagestr=String ("tu as le bonjour de l'ESP8266, ici ");
   hellomessagestr += hostnam+ " last reboot was "+lstreboot;
-
+  Serial.println("In the MQTT reconnect loop...");
+  if (!WifiOK){
+    Serial.println("Attempt to reconnect to Wifi");
+    setup_wifi();
+    if (!WifiOK){
+      return;
+    }
+  }
   hellomessagestr.toCharArray(hellomessagechar,150);
   // Loop until we're reconnected
   while (!client.connected()) {
@@ -429,13 +473,15 @@ void loop() {  // et voila on est parti pour un tour ---------------------------
   Serial.println(neoseq);
  if (WIFIMQTT == 1)
  {
-  // we call NTP only if has not worked yet. at start time is 0 as so 1970 per definition
-  if (year() == 1970) { // time to go back to current century ....
-    NTPGetTime();
-    delay(10);
-  }
-
- long now = millis();
+  if (WifiOK) {
+    // we call NTP only if has not worked yet. at start time is 0 as so 1970 per definition
+    if (year() == 1970) { // time to go back to current century ....
+      NTPGetTime();
+      delay(10);
+     }
+   long now = millis();
+   }
+   
 //  delay(MainDelay);
   compteur++; // compteur de nombre boucle
   if (!client.connected()) {
@@ -453,12 +499,19 @@ if (neoseq == "ALL"){
   //STR
    strip.setBrightness(125);
    Serial.println("Snow sparkle...");
+   #if defined(ARDUINO_ESP8266_WEMOS_D1MINI)
+     oled.println("Sparkle");oled.display();
+   #endif
    for (int ii=0;ii<17;ii++) {
     SnowSparkle(strip.Color(10, 10, 10));
     client.loop();if (neoseq != "ALL"){return;}
    }
    
    Serial.println("Strip color ..");
+   #if defined(ARDUINO_ESP8266_WEMOS_D1MINI)
+     oled.clear(PAGE);  oled.setCursor(0,0); // clear display buffer   
+     oled.println("Strip color");oled.display();
+   #endif
    colorWipe(strip.Color(255, 0, 0), 50); // Red
      client.loop();if (neoseq != "ALL"){return;}
    colorWipe(strip.Color(0, 255, 0), 50); // Green
@@ -467,6 +520,10 @@ if (neoseq == "ALL"){
      client.loop();if (neoseq != "ALL"){return;}
    // RGB Wipe
    Serial.println("RGB Wipe ..");
+   #if defined(ARDUINO_ESP8266_WEMOS_D1MINI)
+     oled.clear(PAGE); oled.setCursor(0,0);// clear display buffer   
+     oled.println("RGB Wipe");oled.display();
+   #endif   
    RGBLoop(); client.loop();RGBLoop(); client.loop();
    // Heart beat 
    Serial.println("Heart beat ..");
