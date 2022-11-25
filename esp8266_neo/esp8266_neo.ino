@@ -1,4 +1,6 @@
 /*
+New version to be able to manage simutaneouly 2 led strips 
+
 added : manage situation where Wifi does not work, we will go to ALL
 added : new way to call NTP using a library
 Module standard
