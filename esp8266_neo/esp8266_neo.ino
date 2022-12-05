@@ -69,11 +69,13 @@ Add former RGB support
   #error "please check the board you selected, is wiring ok ? only NODEMCU and WeMos supported"
 #endif
 
-#define NEOPIN 5 // PIN D1 on wemos or nodemcu
+#define NEOPIN1 0 // PIN D3 on wemos or nodemcu
+#define NEOPIN2 2 // PIN D2 on wemos or nodemcu
+
 #define WIFIMQTT 1 // 1 with  wifi and mqtt other value like 0 no Wifi and no MQTT
 #define MAXWIFITRYNBR 10 // if using wifi and MQTT number of tries before leaving it to a later time
 // #define NUM_LEDS 300 // number of LED on the strip 300 70
-#define NUM_LEDS 208 // number of LED on the strip 300 70
+#define NUM_LEDS 300 // number of LED on the strip 300 70 208
 
 
 // Parameter 1 = number of pixels in strip
@@ -83,7 +85,9 @@ Add former RGB support
 //   NEO_KHZ400  400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
 //   NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
 //   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, NEOPIN, NEO_GRB + NEO_KHZ800);
+// Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, NEOPIN1, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip1 = Adafruit_NeoPixel(NUM_LEDS, NEOPIN1, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip2 = Adafruit_NeoPixel(NUM_LEDS, NEOPIN2, NEO_GRB + NEO_KHZ800);
 // Attention pas plus de 5 car sur emplacement
 #define TopicCompu "/compu/maison/"   // this one is to be used by other programs
 #define TopicHuman "/human/maison/"  // this one to be understand in MQTT by a human being
@@ -144,6 +148,14 @@ long lastMsg = 0;
 char msg[150];
 int value = 0;
 int compteur = 0;
+
+void hw_wdt_disable(){
+  *((volatile uint32_t*) 0x60000900) &= ~(1); // Hardware WDT OFF
+}
+
+void hw_wdt_enable(){
+  *((volatile uint32_t*) 0x60000900) |= 1; // Hardware WDT ON
+}
   
 void setup() {                      // -------------------------------------------------------------
   String chipidstr;
@@ -158,7 +170,8 @@ void setup() {                      // -----------------------------------------
   Serial.print("LED Strip animation "); Serial.print(NUM_LEDS);Serial.println(" LEDs");
   Serial.println("Data to be connected to PIN D1");
     
-
+  // hw_wdt_disable(); // just use if you need it !!!
+  
   hostnam =String("ESP8266-OTA-");
   chipidstr =String(ESP.getChipId(), HEX);
   hostnam += chipidstr;
@@ -196,7 +209,8 @@ void setup() {                      // -----------------------------------------
   oled.setCursor(0,0);
   oled.setFontType(0);
   oled.println("NEO2022");
-  oled.print(NUM_LEDS);oled.println(" leds");
+  oled.print("2x");oled.print(NUM_LEDS);oled.print(" leds"); 
+  oled.println("pin D3/D4");
   oled.println(chipidstr);
   oled.display();
   #endif
@@ -234,8 +248,9 @@ else {
 }
   
 // start NeoPIxel
-  strip.begin();
-  strip.show(); // Initialize all pixels to 'off'
+  Serial.println("Strip Begin to come");
+  stripbegin();
+  stripshow(); // Initialize all pixels to 'off'
   neoseq = "ALL"; // we will start with 
 
 } // end of setup
@@ -279,7 +294,7 @@ void setup_wifi() {
   Serial.println(ssid);   
   int trynbr = 0;
   #if defined(ARDUINO_ESP8266_WEMOS_D1MINI)
-      oled.print("WiFi:");
+      oled.print("WiFi");
     #endif
 
   WiFi.begin(ssid, password);
@@ -383,7 +398,7 @@ void callback(char* topic, byte* payload, unsigned int length) { // we have made
     {
       neoseq=MessRecu.substring(3,6);
       Serial.print("code recu :");Serial.println(neoseq);Serial.println("substr :");Serial.println(MessRecu.substring(3,6));
-      strip.setBrightness(255);
+      stripsetBrightness(255);
     }
     if (MessRecu.substring(0,3) == "LED")
     {
@@ -513,23 +528,23 @@ void loop() {  // et voila on est parti pour un tour ---------------------------
 // 2019 OK
 if (neoseq == "ALL"){
   //STR
-   strip.setBrightness(125);
+   stripsetBrightness(125);
    Serial.println("Snow sparkle...");
    #if defined(ARDUINO_ESP8266_WEMOS_D1MINI)
      oled.println("Sparkle");oled.display();
    #endif
-   for (int ii=0;ii<17;ii++) {
-    SnowSparkle(strip.Color(10, 10, 10));
+   for (int ii=0;ii<10;ii++) {
+    SnowSparkle(stripColor(10, 10, 10));
     client.loop();if (neoseq != "ALL"){return;}
    }
    
    Serial.println("Strip color ..");
    messOled=("StripColor"); DspOled(messOled);
-   colorWipe(strip.Color(255, 0, 0), 50); // Red
+   colorWipe(stripColor(255, 0, 0), 50); // Red
      client.loop();if (neoseq != "ALL"){return;}
-   colorWipe(strip.Color(0, 255, 0), 50); // Green
+   colorWipe(stripColor(0, 255, 0), 50); // Green
      client.loop();if (neoseq != "ALL"){return;}
-   colorWipe(strip.Color(0, 0, 255), 50); // Blue
+   colorWipe(stripColor(0, 0, 255), 50); // Blue
      client.loop();if (neoseq != "ALL"){return;}
    // RGB Wipe
    Serial.println("RGB Wipe ..");
@@ -541,12 +556,12 @@ if (neoseq == "ALL"){
    heartbeat(10); 
    client.loop();if (neoseq != "ALL"){return;}
    // Theatre
-   strip.setBrightness(125);
+   stripsetBrightness(125);
    Serial.println("Theater pixel ..");
    messOled=("TheaterPix"); DspOled(messOled);
-   theaterChase(strip.Color(  0,   0, 127), 50);theaterChase(strip.Color(  0,   0, 127), 50); theaterChase(strip.Color(  0,   0, 127), 50); // Blue
+   theaterChase(stripColor(  0,   0, 127), 50);theaterChase(stripColor(  0,   0, 127), 50); theaterChase(stripColor(  0,   0, 127), 50); // Blue
    // Rainbow
-   strip.setBrightness(125);
+   stripsetBrightness(125);
    Serial.println("Rainbow cycle ..");
    messOled=("Rainbow"); DspOled(messOled);
    rainbowCycle(5); client.loop();if (neoseq != "ALL"){return;}
@@ -578,13 +593,13 @@ if (neoseq == "ALL"){
   }
 
   if (neoseq == "STR"){
-   strip.setBrightness(125);
+   stripsetBrightness(125);
    Serial.println("Strip color ..");
-   colorWipe(strip.Color(255, 0, 0), 50); // Red
+   colorWipe(stripColor(255, 0, 0), 50); // Red
      client.loop();if (neoseq != "STR"){return;}
-   colorWipe(strip.Color(0, 255, 0), 50); // Green
+   colorWipe(stripColor(0, 255, 0), 50); // Green
      client.loop();if (neoseq != "STR"){return;}
-   colorWipe(strip.Color(0, 0, 255), 50); // Blue
+   colorWipe(stripColor(0, 0, 255), 50); // Blue
      client.loop();if (neoseq != "STR"){return;}
   } 
 
@@ -602,7 +617,7 @@ if (neoseq == "ALL"){
   if (neoseq == "THR"){
     
    Serial.println("Theater pixel ..");
-   theaterChase(strip.Color(  0,   0, 127), 50); // Blue
+   theaterChase(stripColor(  0,   0, 127), 50); // Blue
   }
   if (neoseq == "RNB"){
    Serial.println("Rainbow cycle ..");
@@ -685,11 +700,11 @@ void heartbeat(int num_beat) { //Written by Firionus, THANKS !!!!!
     Ip2 = Ip2 / 100 * 255;
     if (Ip1 == Ip2)   //if fade is constant
     {
-     strip.setBrightness((pow(255, -2) * pow(Ip1, 3))/256*255);
+     stripsetBrightness((pow(255, -2) * pow(Ip1, 3))/256*255);
      for (int ledNumber=0; ledNumber<NUM_LEDS; ledNumber++) {
-      strip.setPixelColor(ledNumber, 255, 0, 0);
+      stripsetPixelColor(ledNumber, 255, 0, 0);
       }
-      strip.show();
+      stripshow();
       yield();
       delay(Tp2 - Tp1); //wait till second point is reached
     }
@@ -706,11 +721,11 @@ void heartbeat(int num_beat) { //Written by Firionus, THANKS !!!!!
         {
      //     analogWrite(led, k * pow(t - T0, 3));
      // pwm.setPWM(COLOOR,0,(k * pow(t - T0, 3)/256*4096));
-     strip.setBrightness((k * pow(t - T0, 3)/256*255));
+     stripsetBrightness((k * pow(t - T0, 3)/256*255));
      for (int ledNumber=0; ledNumber<NUM_LEDS; ledNumber++) {
-      strip.setPixelColor(ledNumber, 255, 0, 0);
+      stripsetPixelColor(ledNumber, 255, 0, 0);
       }
-      strip.show();
+      stripshow();
       t++;
       delayMicroseconds(1);
       yield();
@@ -726,11 +741,11 @@ void heartbeat(int num_beat) { //Written by Firionus, THANKS !!!!!
         {
           //  analogWrite(led, k * pow(Tmax - t, 3)); //write value every millisecond
           // pwm.setPWM(COLOOR,0,(k * pow(Tmax - t, 3))/256*4096);
-         strip.setBrightness((k * pow(Tmax - t, 3))/256*255);
+         stripsetBrightness((k * pow(Tmax - t, 3))/256*255);
          for (int ledNumber=0; ledNumber<NUM_LEDS; ledNumber++) {
-          strip.setPixelColor(ledNumber, 255, 0, 0);
+          stripsetPixelColor(ledNumber, 255, 0, 0);
           }
-          strip.show();
+          stripshow();
         
           t++;
           delayMicroseconds(1);
@@ -771,12 +786,66 @@ void RGBLoop(){
 
 // Fill the dots one after the other with a color
 void colorWipe(uint32_t c, uint8_t wait) {
-  for(uint16_t i=0; i<strip.numPixels(); i++) {
-      strip.setPixelColor(i, c);
-      strip.show();
+  for(uint16_t i=0; i<stripnumPixels(); i++) {
+      stripsetPixelColor(i, c);
+      stripshow();
       delay(wait);
   }
 } /// end of main loop ==========================================
+
+// set of functions that will allow to multiply the number of strips or even change the library one day
+// this comes from https://adafruit.github.io/Adafruit_NeoPixel/html/class_adafruit___neo_pixel.html
+
+void stripsetBrightness(uint8_t intensity){
+  strip1.setBrightness(intensity);
+  strip2.setBrightness(intensity);  
+}
+
+void stripsetPixelColor(uint16_t ledNumber,uint8_t redBright, uint8_t greenBright, uint8_t blueBright){
+  /*  Parameters
+    uint16_t ledNumber Pixel index, starting from 0.
+    uint8_t Red brightness, 0 = minimum (off), 255 = maximum.
+    uint8_t Green brightness, 0 = minimum (off), 255 = maximum.
+    uint8_t Blue brightness, 0 = minimum (off), 255 = maximum.
+    uint8_t White brightness, 0 = minimum (off), 255 = maximum, ignored if using RGB pixels. not implemented here
+   */
+  strip1.setPixelColor(ledNumber, redBright, greenBright, blueBright);
+  strip2.setPixelColor(ledNumber, redBright, greenBright, blueBright);
+}
+
+void stripsetPixelColor(uint16_t ledNumber,uint32_t combinedcolor){
+  /*  Parameters
+    uint16_t ledNumber Pixel index, starting from 0.
+    uint32_t combined colers using 32-bits 'packed' RGB or RGBW
+   */
+  strip1.setPixelColor(ledNumber, combinedcolor);
+  strip2.setPixelColor(ledNumber, combinedcolor);
+}
+
+uint32_t stripColor(uint8_t red, uint8_t green, uint8_t blue){
+  return(strip1.Color(red, green, blue)); // assume that both strips are aligned
+}
+
+void stripshow(void){
+  strip1.show();
+  strip2.show();  
+}
+
+void stripbegin(void){
+  strip1.begin();
+  strip2.begin();
+}
+
+void stripfill (uint32_t c, uint16_t first=0, uint16_t count=0){
+  strip1.fill(c,first,count);
+  strip2.fill(c,first,count);
+
+}
+
+uint16_t 	stripnumPixels (void) {
+  return(strip1.numPixels()); // assuming same number of pixel on both strips
+}
+// end of led functions -----------------------------------
 
 void breathe1() {
 //Written by: Jason Yandell
@@ -790,12 +859,12 @@ float Duration = 3000; // number of breath in this call
 for (int i = 0; i < Duration; i++) {
 // Intensity will go from 10 - MaximumBrightness in a "breathing" manner
 float intensity = MaximumBrightness /2.0 * (1.0 + sin(SpeedFactor * i));
-strip.setBrightness(intensity);
+stripsetBrightness(intensity);
 // Now set every LED to that color
 for (int ledNumber=0; ledNumber<NUM_LEDS; ledNumber++) {
-strip.setPixelColor(ledNumber, 0, 0, 255);
+stripsetPixelColor(ledNumber, 0, 0, 255);
 }
-strip.show();
+stripshow();
 delay(0); // to avoif watchdog firing on long loop 
 }
 }
@@ -815,13 +884,13 @@ Duration = Duration * 60 / NUM_LEDS;
 for (int i = 0; i < Duration; i++) {
 // Intensity will go from 0 to MaximumBrightness in a "breathing" manner
 float intensity = MaximumBrightness /2.0 * (1.0 + sin(pi*1.5+2*pi/Duration * i));
-strip.setBrightness(intensity);
+stripsetBrightness(intensity);
 // Serial.print(intensity);Serial.print("/");
 // Now set every LED to that color
 for (int ledNumber=0; ledNumber<NUM_LEDS; ledNumber++) {
-strip.setPixelColor(ledNumber, 0, 0, 255); // this is blue
+stripsetPixelColor(ledNumber, 0, 0, 255); // this is blue
 }
-strip.show();
+stripshow();
 delay(0); // to avoif watchdog firing on long loop 
 }
 }
@@ -842,14 +911,14 @@ void breathe3() {
   // Intensity will go from 0 to MaximumBrightness in a "breathing" manner
   // float intensity = MaximumBrightness /2.0 * (1.0 + sin(pi*1.5+2*pi/Duration * i));
   float intensity = MaximumBrightness /2.0 * (1.0 + exp(sin(i /Duration * pi) )-2);
-  strip.setBrightness(intensity);
+  stripsetBrightness(intensity);
   // Serial.println(intensity);
   // Serial.print(intensity);Serial.print("/");
   // Now set every LED to that color
   for (int ledNumber=0; ledNumber<NUM_LEDS; ledNumber++) {
-  strip.setPixelColor(ledNumber, 0, 0, 255); // this is blue
+  stripsetPixelColor(ledNumber, 0, 0, 255); // this is blue
   }
-  strip.show();
+  stripshow();
   delay(0); // to avoif watchdog firing on long loop 
   }
   delay(StopBreath);
@@ -906,16 +975,16 @@ void BouncingBalls(byte red, byte green, byte blue, int BallCount) {
 }
 void SnowSparkle(uint32_t snowcolor) {
   int j;
-  strip.setBrightness(200);
-  strip.fill(snowcolor);
-  strip.show();
+  stripsetBrightness(200);
+  stripfill(snowcolor);
+  stripshow();
   for (int i = 0 ;i<10;i++){
   j=random(NUM_LEDS);
-  strip.setPixelColor(j,strip.Color(255,255,255));
-  strip.show();
+  stripsetPixelColor(j,stripColor(255,255,255));
+  stripshow();
   delay(random(500));
-  strip.setPixelColor(j,snowcolor);
-  strip.show();
+  stripsetPixelColor(j,snowcolor);
+  stripshow();
   // for debug Serial.print(j);Serial.print(" ");
   }
   // Serial.println();
@@ -925,10 +994,10 @@ void rainbow(uint8_t wait) {
   uint16_t i, j;
 
   for(j=0; j<256; j++) {
-    for(i=0; i<strip.numPixels(); i++) {
-      strip.setPixelColor(i, Wheel((i+j) & 255));
+    for(i=0; i<stripnumPixels(); i++) {
+      stripsetPixelColor(i, Wheel((i+j) & 255));
     }
-    strip.show();
+    stripshow();
     client.loop();
     delay(wait);
   }
@@ -939,10 +1008,10 @@ void rainbowCycle(uint8_t wait) {
   uint16_t i, j;
 
   for(j=0; j<256*5; j++) { // 5 cycles of all colors on wheel
-    for(i=0; i< strip.numPixels(); i++) {
-      strip.setPixelColor(i, Wheel(((i * 256 / strip.numPixels()) + j) & 255));
+    for(i=0; i< stripnumPixels(); i++) {
+      stripsetPixelColor(i, Wheel(((i * 256 / stripnumPixels()) + j) & 255));
     }
-    strip.show();
+    stripshow();
     delay(wait);
   }
 }
@@ -951,15 +1020,15 @@ void rainbowCycle(uint8_t wait) {
 void theaterChase(uint32_t c, uint8_t wait) {
   for (int j=0; j<10; j++) {  //do 10 cycles of chasing
     for (int q=0; q < 3; q++) {
-      for (int i=0; i < strip.numPixels(); i=i+3) {
-        strip.setPixelColor(i+q, c);    //turn every third pixel on
+      for (int i=0; i < stripnumPixels(); i=i+3) {
+        stripsetPixelColor(i+q, c);    //turn every third pixel on
       }
-      strip.show();
+      stripshow();
 
       delay(wait);
 
-      for (int i=0; i < strip.numPixels(); i=i+3) {
-        strip.setPixelColor(i+q, 0);        //turn every third pixel off
+      for (int i=0; i < stripnumPixels(); i=i+3) {
+        stripsetPixelColor(i+q, 0);        //turn every third pixel off
       }
     }
   }
@@ -969,15 +1038,15 @@ void theaterChase(uint32_t c, uint8_t wait) {
 void theaterChaseRainbow(uint8_t wait) {
   for (int j=0; j < 256; j++) {     // cycle all 256 colors in the wheel
     for (int q=0; q < 3; q++) {
-        for (int i=0; i < strip.numPixels(); i=i+3) {
-          strip.setPixelColor(i+q, Wheel( (i+j) % 255));    //turn every third pixel on
+        for (int i=0; i < stripnumPixels(); i=i+3) {
+          stripsetPixelColor(i+q, Wheel( (i+j) % 255));    //turn every third pixel on
         }
-        strip.show();
+        stripshow();
 
         delay(wait);
 
-        for (int i=0; i < strip.numPixels(); i=i+3) {
-          strip.setPixelColor(i+q, 0);        //turn every third pixel off
+        for (int i=0; i < stripnumPixels(); i=i+3) {
+          stripsetPixelColor(i+q, 0);        //turn every third pixel off
         }
     }
   }
@@ -987,13 +1056,13 @@ void theaterChaseRainbow(uint8_t wait) {
 // The colours are a transition r - g - b - back to r.
 uint32_t Wheel(byte WheelPos) {
   if(WheelPos < 85) {
-   return strip.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
+   return stripColor(WheelPos * 3, 255 - WheelPos * 3, 0);
   } else if(WheelPos < 170) {
    WheelPos -= 85;
-   return strip.Color(255 - WheelPos * 3, 0, WheelPos * 3);
+   return stripColor(255 - WheelPos * 3, 0, WheelPos * 3);
   } else {
    WheelPos -= 170;
-   return strip.Color(0, WheelPos * 3, 255 - WheelPos * 3);
+   return stripColor(0, WheelPos * 3, 255 - WheelPos * 3);
   }
 }
 void Strobe(byte red, byte green, byte blue, int StrobeCount, int FlashDelay, int EndPause)
@@ -1098,7 +1167,7 @@ void setPixelHeatColor (int Pixel, byte temperature) {
 void showStrip() {
  #ifdef ADAFRUIT_NEOPIXEL_H 
    // NeoPixel
-   strip.show();
+   stripshow();
  #endif
  #ifndef ADAFRUIT_NEOPIXEL_H
    // FastLED
@@ -1109,7 +1178,7 @@ void showStrip() {
 void setPixel(int Pixel, byte red, byte green, byte blue) {
  #ifdef ADAFRUIT_NEOPIXEL_H 
    // NeoPixel
-   strip.setPixelColor(Pixel, strip.Color(red, green, blue));
+   stripsetPixelColor(Pixel, stripColor(red, green, blue));
  #endif
  #ifndef ADAFRUIT_NEOPIXEL_H 
    // FastLED
